@@ -40,12 +40,15 @@ public class CommsSender implements Runnable {
 	private ClientComms clientComms = null;
 	private CommsTokenStore tokenStore = null;
 	private Thread 	sendThread		= null;
-	
-	public CommsSender(ClientComms clientComms, ClientState clientState, CommsTokenStore tokenStore, OutputStream out) {
-		this.out = new MqttOutputStream(clientState, out);
+	private NetworkModule networkModule = null;
+
+	public CommsSender(ClientComms clientComms, ClientState clientState, CommsTokenStore tokenStore, OutputStream out,
+					   NetworkModule networkModule) {
+		this.out = new MqttOutputStream(clientState, out, networkModule);
 		this.clientComms = clientComms;
 		this.clientState = clientState;
 		this.tokenStore = tokenStore;
+		this.networkModule = networkModule;
 		log.setResourceName(clientComms.getClient().getClientId());
 	}
 	

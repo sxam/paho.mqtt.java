@@ -22,10 +22,12 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttPersistable;
 import org.eclipse.paho.client.mqttv3.internal.ExceptionHelper;
+import org.eclipse.paho.client.mqttv3.internal.TCPNIONetworkModule;
 
 
 /**
@@ -174,7 +176,7 @@ public abstract class MqttWireMessage {
 			int first = in.readUnsignedByte();
 			byte type = (byte) (first >> 4);
 			byte info = (byte) (first &= 0x0f);
-			long remLen = readMBI(in).getValue();
+			long remLen = readMBI(in, null).getValue();
 			long totalToRead = counter.getCounter() + remLen;
 
 			MqttWireMessage result;
@@ -257,18 +259,32 @@ public abstract class MqttWireMessage {
 	
 	/**
 	 * Decodes an MQTT Multi-Byte Integer from the given stream.
-	 * @param in the input stream 
+	 * @param in the input stream
+	 * @param tcpNioNetworkModule
 	 * @return {@link MultiByteInteger}
 	 * @throws IOException if an exception occurs when reading the input stream
 	 */
-	protected static MultiByteInteger readMBI(DataInputStream in) throws IOException {
+	protected static MultiByteInteger readMBI(DataInputStream in, TCPNIONetworkModule tcpNioNetworkModule) throws IOException {
 		byte digit;
 		long msgLength = 0;
 		int multiplier = 1;
 		int count = 0;
 		
 		do {
-			digit = in.readByte();
+			if (tcpNioNetworkModule != null) {
+				ByteBuffer buffer = ByteBuffer.allocate(1);
+				tcpNioNetworkModule.getChannel().read(buffer);
+				buffer.flip();
+				if (buffer.hasRemaining()) {
+					digit = buffer.get();
+				}
+				else{
+					digit = 0;
+				}
+			}
+			else {
+				digit = in.readByte();
+			}
 			count++;
 			msgLength += ((digit & 0x7F) * multiplier);
 			multiplier *= 128;

@@ -18,9 +18,12 @@ package org.eclipse.paho.client.mqttv3.internal.wire;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.internal.ClientState;
+import org.eclipse.paho.client.mqttv3.internal.NetworkModule;
+import org.eclipse.paho.client.mqttv3.internal.TCPNIONetworkModule;
 import org.eclipse.paho.client.mqttv3.logging.Logger;
 import org.eclipse.paho.client.mqttv3.logging.LoggerFactory;
 
@@ -35,32 +38,63 @@ public class MqttOutputStream extends OutputStream {
 
 	private ClientState clientState = null;
 	private BufferedOutputStream out;
-	
-	public MqttOutputStream(ClientState clientState, OutputStream out) {
+	private NetworkModule networkModule = null;
+	private TCPNIONetworkModule tcpNioNetworkModule = null;
+
+	public MqttOutputStream(ClientState clientState, OutputStream out, NetworkModule networkModule) {
 		this.clientState = clientState;
 		this.out = new BufferedOutputStream(out);
+		this.networkModule = networkModule;
+		if (networkModule instanceof TCPNIONetworkModule){
+			tcpNioNetworkModule = (TCPNIONetworkModule)networkModule;
+		}
 	}
 	
 	public void close() throws IOException {
-		out.close();
+		if (tcpNioNetworkModule != null){
+			tcpNioNetworkModule.getChannel().close();
+		}
+		else {
+			out.close();
+		}
 	}
 	
 	public void flush() throws IOException {
-		out.flush();
+		if (tcpNioNetworkModule != null){
+
+		}
+		else {
+			out.flush();
+		}
 	}
 	
 	public void write(byte[] b) throws IOException {
-		out.write(b);
+		if (tcpNioNetworkModule != null){
+			tcpNioNetworkModule.getChannel().write(ByteBuffer.wrap(b));
+		}
+		else {
+			out.write(b);
+		}
 		clientState.notifySentBytes(b.length);
 	}
 	
 	public void write(byte[] b, int off, int len) throws IOException {
-		out.write(b, off, len);
+		if (tcpNioNetworkModule != null){
+			tcpNioNetworkModule.getChannel().write(ByteBuffer.wrap(b, off, len));
+		}
+		else {
+			out.write(b, off, len);
+		}
 		clientState.notifySentBytes(len);
 	}
 	
 	public void write(int b) throws IOException {
-		out.write(b);
+		if (tcpNioNetworkModule != null){
+			tcpNioNetworkModule.getChannel().write(ByteBuffer.wrap(new byte[]{(byte)b}));
+		}
+		else {
+			out.write(b);
+		}
 	}
 
 	/**
@@ -75,14 +109,24 @@ public class MqttOutputStream extends OutputStream {
 		byte[] pl = message.getPayload();
 //		out.write(message.getHeader());
 //		out.write(message.getPayload());
-		out.write(bytes,0,bytes.length);
+		if (tcpNioNetworkModule != null) {
+			tcpNioNetworkModule.getChannel().write(ByteBuffer.wrap(bytes,0,bytes.length));
+		}
+		else {
+			out.write(bytes,0,bytes.length);
+		}
 		clientState.notifySentBytes(bytes.length);
 		
         int offset = 0;
         int chunckSize = 1024;
         while (offset < pl.length) {
         	int length = Math.min(chunckSize, pl.length - offset);
-        	out.write(pl, offset, length);
+			if (tcpNioNetworkModule != null) {
+				tcpNioNetworkModule.getChannel().write(ByteBuffer.wrap(pl, offset, length));
+			}
+			else {
+				out.write(pl, offset, length);
+			}
         	offset += chunckSize;
         	clientState.notifySentBytes(length);
         }		

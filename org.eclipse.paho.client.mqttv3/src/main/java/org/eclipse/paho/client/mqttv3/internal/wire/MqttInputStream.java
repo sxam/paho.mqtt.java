@@ -21,10 +21,13 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
 
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.internal.ClientState;
 import org.eclipse.paho.client.mqttv3.internal.ExceptionHelper;
+import org.eclipse.paho.client.mqttv3.internal.NetworkModule;
+import org.eclipse.paho.client.mqttv3.internal.TCPNIONetworkModule;
 import org.eclipse.paho.client.mqttv3.logging.Logger;
 import org.eclipse.paho.client.mqttv3.logging.LoggerFactory;
 
@@ -43,16 +46,30 @@ public class MqttInputStream extends InputStream {
 	private long remLen;
 	private long packetLen;
 	private byte[] packet;
+	private NetworkModule networkModule = null;
+	private TCPNIONetworkModule tcpNioNetworkModule = null;
 
-	public MqttInputStream(ClientState clientState, InputStream in) {
+	public MqttInputStream(ClientState clientState, InputStream in, NetworkModule networkModule) {
 		this.clientState = clientState;
 		this.in = new DataInputStream(in);		
 		this.bais = new ByteArrayOutputStream();
 		this.remLen = -1;
+		this.networkModule = networkModule;
+		if (networkModule instanceof TCPNIONetworkModule){
+			tcpNioNetworkModule = (TCPNIONetworkModule)networkModule;
+		}
 	}
 	
 	public int read() throws IOException {
-		return in.read();
+		if (tcpNioNetworkModule != null){
+			ByteBuffer buffer = ByteBuffer.allocate(1);
+			tcpNioNetworkModule.getChannel().read(buffer);
+			buffer.flip();
+			return buffer.getInt();
+		}
+		else {
+			return in.read();
+		}
 	}
 	
 	public int available() throws IOException {
@@ -88,8 +105,21 @@ public class MqttInputStream extends InputStream {
 				// the keepalive mechanism would kick in
 				// closing the connection.
 				bais.reset();
-				
-				byte first = in.readByte();
+				byte first;
+				if (tcpNioNetworkModule != null) {
+					ByteBuffer buffer = ByteBuffer.allocate(1);
+					tcpNioNetworkModule.getChannel().read(buffer);
+					buffer.flip();
+					if (buffer.hasRemaining()) {
+						first = buffer.get();
+					}
+					else {
+						first = 0;
+					}
+				}
+				else {
+					first = in.readByte();
+				}
 				clientState.notifyReceivedBytes(1);
 
 				byte type = (byte) ((first >>> 4) & 0x0F);
@@ -98,7 +128,7 @@ public class MqttInputStream extends InputStream {
 					// Invalid MQTT message type...
 					throw ExceptionHelper.createMqttException(MqttException.REASON_CODE_INVALID_MESSAGE);
 				}
-				remLen = MqttWireMessage.readMBI(in).getValue();
+				remLen = MqttWireMessage.readMBI(in, tcpNioNetworkModule).getValue();
 				bais.write(first);
 				// bit silly, we decode it then encode it
 				bais.write(MqttWireMessage.encodeMBI(remLen));
@@ -133,10 +163,17 @@ public class MqttInputStream extends InputStream {
     	if (len < 0)
     		throw new IndexOutOfBoundsException();
     	int n = 0;
+		ByteBuffer buffer = null;
     	while (n < len) {
     		int count = -1;
     		try {
-    			count = in.read(packet, off + n, len - n);
+				if (tcpNioNetworkModule != null) {
+					buffer = ByteBuffer.allocate(len);
+					count = tcpNioNetworkModule.getChannel().read(buffer);
+				}
+				else {
+					count = in.read(packet, off + n, len - n);
+				}
     		} catch (SocketTimeoutException e) {
     			// remember the packet read so far 
     			packetLen += n;
@@ -148,5 +185,10 @@ public class MqttInputStream extends InputStream {
     			throw new EOFException();
     		n += count;
     	}
+		if (tcpNioNetworkModule != null) {
+			buffer.flip();
+			byte[] bytes = buffer.array();
+			System.arraycopy(bytes, 0, packet, off, len);
+		}
     }
 }

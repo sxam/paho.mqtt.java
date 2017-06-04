@@ -15,6 +15,11 @@
  */
 package org.eclipse.paho.client.mqttv3.internal;
 
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.logging.Logger;
+import org.eclipse.paho.client.mqttv3.logging.LoggerFactory;
+
+import javax.net.SocketFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,26 +28,20 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
-
-import javax.net.SocketFactory;
-
-import org.eclipse.paho.client.mqttv3.MqttException;
-import org.eclipse.paho.client.mqttv3.logging.Logger;
-import org.eclipse.paho.client.mqttv3.logging.LoggerFactory;
+import java.nio.channels.SocketChannel;
 
 /**
  * A network module for connecting over TCP. 
  */
-public class TCPNetworkModule implements NetworkModule {
-	private static final String CLASS_NAME = TCPNetworkModule.class.getName();
+public class TCPNIONetworkModule implements NetworkModule {
+	private static final String CLASS_NAME = TCPNIONetworkModule.class.getName();
 	private static final Logger log = LoggerFactory.getLogger(LoggerFactory.MQTT_CLIENT_MSG_CAT,CLASS_NAME);
 
-	protected Socket socket;
-	private SocketFactory factory;
+	protected SocketChannel socketChannel;
 	private String host;
 	private int port;
 	private int conTimeout;
-	
+
 	/**
 	 * Constructs a new TCPNetworkModule using the specified host and
 	 * port.  The supplied SocketFactory is used to supply the network
@@ -52,9 +51,9 @@ public class TCPNetworkModule implements NetworkModule {
 	 * @param port The server port
 	 * @param resourceContext The Resource Context
 	 */
-	public TCPNetworkModule(SocketFactory factory, String host, int port, String resourceContext) {
+	public TCPNIONetworkModule(SocketFactory factory, String host, int port, String resourceContext) {
 		log.setResourceName(resourceContext);
-		this.factory = factory;
+		//this.factory = factory;
 		this.host = host;
 		this.port = port;
 		
@@ -73,16 +72,18 @@ public class TCPNetworkModule implements NetworkModule {
 			// @TRACE 252=connect to host {0} port {1} timeout {2}
 			log.fine(CLASS_NAME,methodName, "252", new Object[] {host, new Integer(port), new Long(conTimeout*1000)});
 			SocketAddress sockaddr = new InetSocketAddress(InetAddress.getByName(host), port);
-			socket = factory.createSocket();
+			socketChannel = SocketChannel.open(sockaddr);
+			socketChannel.configureBlocking(true);
+			//socket = factory.createSocket();
 			// Set a read timeout on the socket.
 			// If you change the value here you should also change
 			// the value in CommsReceiver.stop().
-			socket.setSoTimeout(1000);
-			socket.connect(sockaddr, conTimeout*1000);
+			//socket.setSoTimeout(1000);
+			//socket.connect(sockaddr, conTimeout*1000);
 		
 			// SetTcpNoDelay was originally set ot true disabling Nagle's algorithm. 
 			// This should not be required.
-//			socket.setTcpNoDelay(true);	// TCP_NODELAY on, which means we do not use Nagle's algorithm
+//			//socket.setTcpNoDelay(true);	// TCP_NODELAY on, which means we do not use Nagle's algorithm
 		}
 		catch (ConnectException ex) {
 			//@TRACE 250=Failed to create TCP socket
@@ -92,19 +93,31 @@ public class TCPNetworkModule implements NetworkModule {
 	}
 
 	public InputStream getInputStream() throws IOException {
-		return socket.getInputStream();
+		return null;
 	}
-	
+
 	public OutputStream getOutputStream() throws IOException {
-		return socket.getOutputStream();
+		return null;
 	}
+
+	public SocketChannel getChannel() throws IOException {
+		return socketChannel;
+	}
+
+//	public InputStream getInputStream() throws IOException {
+//		return socket.getInputStream();
+//	}
+//
+//	public OutputStream getOutputStream() throws IOException {
+//		return socket.getOutputStream();
+//	}
 
 	/**
 	 * Stops the module, by closing the TCP socket.
 	 * @throws IOException if there is an error closing the socket
 	 */
 	public void stop() throws IOException {
-		if (socket != null) {
+		//if (socket != null) {
 			// CDA: an attempt is made to stop the receiver cleanly before closing the socket.
 			// If the socket is forcibly closed too early, the blocking socket read in
 			// the receiver thread throws a SocketException.
@@ -123,8 +136,11 @@ public class TCPNetworkModule implements NetworkModule {
 			// This workaround should not cause any harm in general but you might
 			// want to move it in SSLNetworkModule.
 
-			socket.shutdownInput();
-			socket.close();
+//			socket.shutdownInput();
+//			socket.close();
+//		}
+		if (socketChannel != null) {
+			socketChannel.close();
 		}
 	}
 	

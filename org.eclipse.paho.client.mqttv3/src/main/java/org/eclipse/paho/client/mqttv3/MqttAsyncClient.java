@@ -36,6 +36,7 @@ import org.eclipse.paho.client.mqttv3.internal.ExceptionHelper;
 import org.eclipse.paho.client.mqttv3.internal.LocalNetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.NetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.SSLNetworkModule;
+import org.eclipse.paho.client.mqttv3.internal.TCPNIONetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.TCPNetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
 import org.eclipse.paho.client.mqttv3.internal.websocket.WebSocketSecureNetworkModule;
@@ -480,8 +481,9 @@ public class MqttAsyncClient implements IMqttAsyncClient {
 			else if (factory instanceof SSLSocketFactory) {
 				throw ExceptionHelper.createMqttException(MqttException.REASON_CODE_SOCKET_FACTORY_MISMATCH);
 			}
-			netModule = new TCPNetworkModule(factory, host, port, clientId);
-			((TCPNetworkModule)netModule).setConnectTimeout(options.getConnectionTimeout());
+			//netModule = new TCPNetworkModule(factory, host, port, clientId);
+			netModule = new TCPNIONetworkModule(factory, host, port, clientId);
+			((TCPNIONetworkModule)netModule).setConnectTimeout(options.getConnectionTimeout());
 			break;
 		case MqttConnectOptions.URI_TYPE_SSL:
 			if (port == -1) {

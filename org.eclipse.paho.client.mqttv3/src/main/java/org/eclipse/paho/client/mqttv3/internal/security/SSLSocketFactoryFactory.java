@@ -34,6 +34,7 @@ import java.util.Vector;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -1353,6 +1354,35 @@ public class SSLSocketFactoryFactory {
 		}
 			
 		return ctx.getSocketFactory();
+	}
+
+	/**
+	 * Returns an SSL Engine for the given configuration. If no
+	 * SSLProtocol is already set, uses DEFAULT_PROTOCOL. Throws
+	 * IllegalArgumentException if the SSLEngine could not be created due
+	 * to underlying configuration problems.
+	 *
+	 * @param configID
+	 *            The configuration identifier for selecting a configuration.
+	 * @param host
+	 *            Host to connect to.
+	 * @param port
+	 *            Port to connect to.
+	 * @return An SSLEngine
+	 * @throws MqttSecurityException if an error occurs whilst creating the {@link SSLEngine}
+	 */
+	public SSLEngine createSSLEngine(String configID, String host, int port)
+			throws MqttSecurityException {
+		final String METHOD_NAME = "createSSLEngine";
+		SSLContext ctx = getSSLContext(configID);
+		if (logger != null) {
+			// 12020 "SSL initialization: configID = {0}, application-enabled cipher suites = {1}"
+			logger.fine(CLASS_NAME, METHOD_NAME, "12020", new Object[]{configID!=null ? configID : "null (broker defaults)",
+					getEnabledCipherSuites(configID)!=null ? getProperty(configID, CIPHERSUITES, null) : "null (using platform-enabled cipher suites)"});
+		}
+		SSLEngine sslEngine = ctx.createSSLEngine(host, port);
+		sslEngine.setUseClientMode(true);
+		return sslEngine;
 	}
 
 }

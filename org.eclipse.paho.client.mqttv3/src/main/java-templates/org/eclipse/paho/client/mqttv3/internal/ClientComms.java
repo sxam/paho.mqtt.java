@@ -674,9 +674,11 @@ public class ClientComms {
 				// packet.
 				NetworkModule networkModule = networkModules[networkModuleIndex];
 				networkModule.start();
-				receiver = new CommsReceiver(clientComms, clientState, tokenStore, networkModule.getInputStream());
+				receiver = new CommsReceiver(clientComms, clientState, tokenStore, networkModule.getInputStream(),
+						networkModule);
 				receiver.start("MQTT Rec: "+getClient().getClientId());
-				sender = new CommsSender(clientComms, clientState, tokenStore, networkModule.getOutputStream());
+				sender = new CommsSender(clientComms, clientState, tokenStore, networkModule.getOutputStream(),
+						networkModule);
 				sender.start("MQTT Snd: "+getClient().getClientId());
 				callback.start("MQTT Call: "+getClient().getClientId());				
 				internalSend(conPacket, conToken);

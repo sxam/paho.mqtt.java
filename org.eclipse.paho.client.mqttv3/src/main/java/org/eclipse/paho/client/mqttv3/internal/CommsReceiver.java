@@ -44,12 +44,19 @@ public class CommsReceiver implements Runnable {
 	private CommsTokenStore tokenStore = null;
 	private Thread recThread = null;
 	private volatile boolean receiving;
+	private NetworkModule networkModule = null;
+	private TCPNIONetworkModule tcpNIONetworkModule = null;
 
-	public CommsReceiver(ClientComms clientComms, ClientState clientState,CommsTokenStore tokenStore, InputStream in) {
-		this.in = new MqttInputStream(clientState, in);
+	public CommsReceiver(ClientComms clientComms, ClientState clientState, CommsTokenStore tokenStore, InputStream in,
+						 NetworkModule networkModule) {
+		this.in = new MqttInputStream(clientState, in, networkModule);
 		this.clientComms = clientComms;
 		this.clientState = clientState;
 		this.tokenStore = tokenStore;
+		this.networkModule = networkModule;
+		if (networkModule instanceof TCPNIONetworkModule){
+			tcpNIONetworkModule = (TCPNIONetworkModule)networkModule;
+		}
 		log.setResourceName(clientComms.getClient().getClientId());
 	}
 
@@ -112,7 +119,7 @@ public class CommsReceiver implements Runnable {
 			try {
 				//@TRACE 852=network read message
 				log.fine(CLASS_NAME,methodName,"852");
-				receiving = in.available() > 0;
+				//receiving = in.available() > 0;
 				MqttWireMessage message = in.readMqttWireMessage();
 				receiving = false;
 
